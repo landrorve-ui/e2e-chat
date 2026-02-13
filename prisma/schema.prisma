@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String          @id @default(uuid())
+  username            String          @unique
+  identityPublicKey   String
+  signedPreKeyPublic  String
+  signedPreKeySignature String
+  createdAt           DateTime        @default(now())
+  
+  oneTimePreKeys      OneTimePreKey[]
+  messagesSent        Message[]       @relation("sentMessages")
+  messagesReceived    Message[]       @relation("receivedMessages")
+}
+
+model OneTimePreKey {
+  id        String  @id @default(uuid())
+  publicKey String
+  used      Boolean @default(false)
+  
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  ciphertext  String
+  header      Json     // Stores ephemeralPublicKey, messageNumber, etc.
+  
+  sender      User     @relation("sentMessages", fields: [senderId], references: [id])
+  senderId    String
+  
+  receiver    User     @relation("receivedMessages", fields: [receiverId], references: [id])
+  receiverId  String
+  
+  createdAt   DateTime @default(now())
+}

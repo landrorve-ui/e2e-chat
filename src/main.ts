@@ -16,7 +16,7 @@ async function bootstrap() {
   );
   app.enableCors({
     origin: '*',
-    credentials: true,
+    credentials: false,
   });
   app.use(cookieParser());
   const host = process.env.HOST || '0.0.0.0';

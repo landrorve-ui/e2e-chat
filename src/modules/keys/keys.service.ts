@@ -36,6 +36,7 @@ export class KeysService {
   async registerUser(data: {
     username: string;
     identityPublicKey: string;
+    signingPublicKey: string;
     signedPreKeyPublic: string;
     signedPreKeySignature: string;
     oneTimePreKeys: string[];
@@ -43,6 +44,7 @@ export class KeysService {
     const {
       username,
       identityPublicKey,
+      signingPublicKey,
       signedPreKeyPublic,
       signedPreKeySignature,
       oneTimePreKeys,
@@ -59,6 +61,7 @@ export class KeysService {
       data: {
         username,
         identityPublicKey,
+        signingPublicKey,
         signedPreKeyPublic,
         signedPreKeySignature,
         oneTimePreKeys: {
@@ -74,11 +77,12 @@ export class KeysService {
   async getUserKeys(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        oneTimePreKeys: {
-          where: { used: false },
-          take: 1, // Get one unused prekey
-        },
+      select: {
+        id: true,
+        identityPublicKey: true,
+        signingPublicKey: true,
+        signedPreKeyPublic: true,
+        signedPreKeySignature: true,
       },
     });
 
@@ -86,28 +90,46 @@ export class KeysService {
       throw new NotFoundException('User not found');
     }
 
-    const oneTimePreKey = user.oneTimePreKeys[0];
-
-    // Mark prekey as used if available
-    let preKeyToReturn: { id: string; publicKey: string } | null = null;
-    if (oneTimePreKey) {
-      await this.prisma.oneTimePreKey.update({
-        where: { id: oneTimePreKey.id },
-        data: { used: true },
-      });
-      preKeyToReturn = {
-        id: oneTimePreKey.id,
-        publicKey: oneTimePreKey.publicKey,
-      };
-    }
+    // Do NOT consume OPK on key fetch. It must be consumed atomically on first message claim.
+    const oneTimePreKey = await this.prisma.oneTimePreKey.findFirst({
+      where: {
+        userId,
+        used: false,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      select: {
+        id: true,
+        publicKey: true,
+      },
+    });
 
     return {
       identityPublicKey: user.identityPublicKey,
+      signingPublicKey: user.signingPublicKey,
       signedPreKey: {
         publicKey: user.signedPreKeyPublic,
         signature: user.signedPreKeySignature,
       },
-      oneTimePreKey: preKeyToReturn,
+      oneTimePreKey: oneTimePreKey ?? null,
     };
+  }
+
+  async claimOneTimePreKey(
+    receiverUserId: string,
+    preKeyId?: string,
+    preKeyPublicKey?: string,
+  ): Promise<void> {
+    if (!preKeyId && !preKeyPublicKey) return;
+
+    const where = preKeyId
+      ? { id: preKeyId, userId: receiverUserId, used: false }
+      : { publicKey: preKeyPublicKey!, userId: receiverUserId, used: false };
+
+    await this.prisma.oneTimePreKey.updateMany({
+      where,
+      data: { used: true },
+    });
   }
 }

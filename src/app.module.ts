@@ -5,10 +5,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { KeysModule } from './modules/keys/keys.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { AuthGuard } from './auth/auth.guard';
 
 @Module({
   imports: [PrismaModule, KeysModule, MessagesModule, GatewayModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, AuthGuard],
 })
 export class AppModule { }

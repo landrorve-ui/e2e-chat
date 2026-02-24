@@ -19,6 +19,10 @@ model User {
   oneTimePreKeys      OneTimePreKey[]
   messagesSent        Message[]       @relation("sentMessages")
   messagesReceived    Message[]       @relation("receivedMessages")
+  groupsCreated       GroupChat[]     @relation("createdGroups")
+  groupMemberships    GroupMember[]
+  groupMessagesSent   GroupMessage[]  @relation("sentGroupMessages")
+  groupMessagesReceived GroupMessage[] @relation("receivedGroupMessages")
 }
 
 model OneTimePreKey {
@@ -44,4 +48,52 @@ model Message {
   receiverId  String
   
   createdAt   DateTime @default(now())
+}
+
+model GroupChat {
+  id          String        @id @default(uuid())
+  name        String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  createdBy   User          @relation("createdGroups", fields: [createdById], references: [id])
+  createdById String
+
+  members     GroupMember[]
+  messages    GroupMessage[]
+}
+
+model GroupMember {
+  id        String    @id @default(uuid())
+  role      GroupRole @default(MEMBER)
+  joinedAt  DateTime  @default(now())
+
+  group     GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId   String
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+
+  @@unique([groupId, userId])
+}
+
+model GroupMessage {
+  id          String   @id @default(uuid())
+  ciphertext  String
+  header      Json
+  createdAt   DateTime @default(now())
+
+  group       GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId     String
+
+  sender      User      @relation("sentGroupMessages", fields: [senderId], references: [id])
+  senderId    String
+
+  recipient   User      @relation("receivedGroupMessages", fields: [recipientId], references: [id])
+  recipientId String
+}
+
+enum GroupRole {
+  OWNER
+  MEMBER
 }
